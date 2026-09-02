@@ -1,7 +1,7 @@
 {
-	"name": "obsidian-sample-plugin",
+	"name": "obsidian-github-turbo-plugin",
 	"version": "1.0.0",
-	"description": "This is a sample plugin for Obsidian (https://obsidian.md)",
+	"description": "Accelerate GitHub access for Obsidian's built-in community plugin & theme marketplace (mirror URL rewriting)",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {
