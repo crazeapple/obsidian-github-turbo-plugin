@@ -3,7 +3,7 @@
 > 计数器：next-I: 002
 > 条目格式见 CONSTITUTION「意向池」节；raw 便签无号，梳理成熟原地升格为 I。
 
-## `I-001` Obsidian GitHub 插件：加速插件或主题的浏览、安装与更新（2026-09-02 · 活跃）
+## `I-001` Obsidian GitHub 插件：加速插件或主题的浏览、安装与更新（2026-09-02 · 完结）
 
 > 原始念头：我想开发一个 Obsidian 的 GitHub 插件，加速 Obsidian 插件或主题的浏览、安装和更新
 
