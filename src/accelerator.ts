@@ -1,5 +1,6 @@
 /**
- * GitHub 访问加速核心（P-001 引擎 + P-002 镜像目录/被动健康观测/自动切换）。
+ * GitHub 访问加速核心（P-001 引擎 + P-002 镜像目录/被动健康观测/自动切换
+ * + P-003 纯用户池/统一映射/可达性验证）。
  *
  * 机制（spike 实证）：Obsidian 桌面端内置市场的全部 GitHub 请求经
  * `ipcRenderer.send('request-url', id, { url, ... })` 过桥且 URL 明文，
@@ -7,56 +8,151 @@
  * 并观测响应即可实现镜像加速与健康记账。
  */
 
-/** 镜像目录条目：替换方式以 `type` 判别，预留未来非前缀型替换（如域名映射）。 */
+import { requestUrl } from 'obsidian';
+
+/**
+ * 可达性双探针（均取自 Obsidian 官方仓库 obsidianmd/obsidian-releases）：
+ * github 探针走 github.com 域 raw 路径（302 重定向链与 release 下载同构，
+ * 顺带验证镜像跟随重定向的能力）；raw 探针走 raw 域 README。
+ * 按候选映射分别改写后并发请求——两条映射各自得到验证（单探针会漏检另一条）。
+ */
+const PROBE_GITHUB_URL =
+	'https://github.com/obsidianmd/obsidian-releases/raw/HEAD/README.md';
+const PROBE_GITHUB_MARKER = 'Obsidian';
+const PROBE_RAW_URL =
+	'https://raw.githubusercontent.com/obsidianmd/obsidian-releases/HEAD/README.md';
+const PROBE_RAW_MARKER = 'Obsidian';
+
+/** 映射对：原始地址前缀 → 镜像地址前缀。 */
+export interface MappingPair {
+	/** 被改写的原始地址前缀（含尾斜杠），如 `https://github.com/`。 */
+	from: string;
+	/** 改写后的地址前缀（含尾斜杠），如前缀型为 镜像前缀 + from。 */
+	to: string;
+}
+
+/** 镜像条目：名字即唯一身份与显示名，加速行为由映射对列表描述。 */
 export interface MirrorCandidate {
-	/** 替换方式：`prefix` = 镜像前缀拼接（当前唯一实现）。 */
-	type: 'prefix';
-	/** 镜像前缀，如 `https://gh-proxy.com/`。 */
-	base: string;
-	/** 显示名。 */
-	label: string;
+	/** 镜像名：唯一身份（同名即重复），如 `gh-proxy.com`。 */
+	name: string;
+	/** 映射对列表（有序，至少含 github 与 raw 两条）。 */
+	mappings: MappingPair[];
 }
 
 /**
- * 内置镜像目录：有序（最优在前），顺序即偏好与回退顺序；
- * 录入与排序随插件版本发布更新（spec P-002 范围内）。
+ * 默认种子池：首次使用（无 pool 键）时播种；有序（最优在前），顺序即回退顺序。
+ * 种子集合为实现期决策——入选镜像须实测可用（spec P-003），按实测可靠性排序。
  */
-export const MIRROR_CATALOG: MirrorCandidate[] = [
-	{ type: 'prefix', base: 'https://gh-proxy.com/', label: 'gh-proxy.com' },
-	{ type: 'prefix', base: 'https://ghproxy.net/', label: 'ghproxy.net' },
-	{ type: 'prefix', base: 'https://ghfast.top/', label: 'ghfast.top' },
+export const DEFAULT_POOL: MirrorCandidate[] = [
 	{
-		type: 'prefix',
-		base: 'https://github.moeyy.xyz/',
-		label: 'github.moeyy.xyz',
+		name: 'gh-proxy.com',
+		mappings: [
+			{
+				from: 'https://github.com/',
+				to: 'https://gh-proxy.com/https://github.com/',
+			},
+			{
+				from: 'https://raw.githubusercontent.com/',
+				to: 'https://gh-proxy.com/https://raw.githubusercontent.com/',
+			},
+		],
+	},
+	{
+		name: 'ghproxy.net',
+		mappings: [
+			{
+				from: 'https://github.com/',
+				to: 'https://ghproxy.net/https://github.com/',
+			},
+			{
+				from: 'https://raw.githubusercontent.com/',
+				to: 'https://ghproxy.net/https://raw.githubusercontent.com/',
+			},
+		],
+	},
+	{
+		name: 'ghfast.top',
+		mappings: [
+			{
+				from: 'https://github.com/',
+				to: 'https://ghfast.top/https://github.com/',
+			},
+			{
+				from: 'https://raw.githubusercontent.com/',
+				to: 'https://ghfast.top/https://raw.githubusercontent.com/',
+			},
+		],
+	},
+	{
+		name: 'github.moeyy.xyz',
+		mappings: [
+			{
+				from: 'https://github.com/',
+				to: 'https://github.moeyy.xyz/https://github.com/',
+			},
+			{
+				from: 'https://raw.githubusercontent.com/',
+				to: 'https://github.moeyy.xyz/https://raw.githubusercontent.com/',
+			},
+		],
 	},
 ];
 
+/** 可达性测试结果（设置页条目展示用）。 */
+export interface MirrorTestResult {
+	/** 是否可达。 */
+	ok: boolean;
+	/** 结果描述：✓ 耗时 / ✗ 原因。 */
+	detail: string;
+}
+
 /** 镜像池状态快照条目（设置页只读展示用）。 */
 export interface MirrorStatus {
-	/** 显示名。 */
+	/** 显示名（即镜像名）。 */
 	label: string;
 	/** 是否为当前 active 镜像。 */
 	active: boolean;
 	/** 是否处于本会话拉黑状态。 */
 	blacklisted: boolean;
+	/** 最近一次可达性测试结果。 */
+	testResult?: string;
 }
 
 /** 改写引擎读取的配置。 */
 export interface AcceleratorConfig {
 	/** 总开关：关闭后全部请求直连。 */
 	enabled: boolean;
+	/** 用户镜像池（有序）：条目 = 名字 + 映射对列表，纯用户池模型。 */
+	pool: MirrorCandidate[];
 }
 
 export const DEFAULT_ACCELERATOR_CONFIG: AcceleratorConfig = {
 	enabled: true,
+	pool: [],
 };
 
-/** 仅命中这两个前缀的 URL 会被改写（spec 范围内，其余域名一律不触碰）。 */
-const GITHUB_PREFIXES = [
+/**
+ * GitHub 已知域：加速范畴的基准集合——命中的请求应被映射覆盖，
+ * 未覆盖则触发未覆盖告知（P-003 / T-012）。
+ */
+export const GITHUB_PREFIXES = [
 	'https://github.com/',
 	'https://raw.githubusercontent.com/',
 ];
+
+/** 判定 url 是否属于 GitHub 已知域。 */
+export function isKnownGithubUrl(url: string): boolean {
+	return GITHUB_PREFIXES.some((prefix) => url.startsWith(prefix));
+}
+
+/** 提取 url 的 host（解析失败时返回原串）。 */
+export function hostOf(url: string): string {
+	try {
+		return new URL(url).host;
+	} catch {
+		return url;
+	}
+}
 
 /** 内置市场请求过桥频道（spike 实证）。 */
 const REQUEST_URL_CHANNEL = 'request-url';
@@ -110,40 +206,23 @@ export function judgeReply(
 	return isMirrorFailure(slot.status, url);
 }
 
-/** 规范化镜像前缀：确保以单个 `/` 结尾；空串原样返回表示不加速。 */
-function normalizeMirrorBase(mirrorBase: string): string {
-	if (!mirrorBase) {
-		return '';
-	}
-	return mirrorBase.endsWith('/') ? mirrorBase : `${mirrorBase}/`;
-}
-
-/** `prefix` 型改写：非 GitHub 前缀原样返回；已带镜像前缀原样返回（幂等）。 */
-function rewriteByPrefix(url: string, base: string): string {
-	const normalized = normalizeMirrorBase(base);
-	if (!normalized) {
-		return url;
-	}
-	if (!GITHUB_PREFIXES.some((prefix) => url.startsWith(prefix))) {
-		return url;
-	}
-	if (url.startsWith(normalized)) {
-		return url;
-	}
-	return normalized + url;
+/** 规范化映射 to 前缀：确保以单个 `/` 结尾。 */
+function normalizeTo(to: string): string {
+	return to.endsWith('/') ? to : `${to}/`;
 }
 
 /**
- * 纯改写函数：按候选的替换方式分发（当前仅 `prefix`；
- * 未知 `type` 一律不改写，未来 `host-map` 等以新 `type` 接入）。
+ * 统一映射改写：url 已是任一映射的产物（以 to 开头）则原样返回（幂等）；
+ * 命中某映射的 from 前缀 → to + 剩余路径；均未命中 → 原样直连。
+ * 前缀拼接与域名替换两形态由映射对的写法自然承载，无需分派。
  */
 export function rewriteUrl(url: string, candidate: MirrorCandidate): string {
-	switch (candidate.type) {
-		case 'prefix':
-			return rewriteByPrefix(url, candidate.base);
-		default:
-			return url;
+	const pairs = candidate.mappings.filter((p) => p.from && p.to);
+	if (pairs.some((p) => url.startsWith(normalizeTo(p.to)))) {
+		return url; // 幂等：已是该候选任一映射的产物
 	}
+	const hit = pairs.find((p) => url.startsWith(p.from));
+	return hit ? normalizeTo(hit.to) + url.slice(hit.from.length) : url;
 }
 
 /** 对参数列表就地改写：遍历对象形态的参数，命中其字符串 `url` 字段。 */
@@ -172,89 +251,117 @@ function extractUrl(args: unknown[]): string | undefined {
 }
 
 /**
- * 镜像游标与健康记账（会话内存状态）：失败推进游标、
+ * 镜像游标与健康记账（镜像名键控，会话内存）：失败推进游标、
  * 同一候选累计 3 败本会话拉黑（带 30 分钟冷却自动解除）、
  * 成功稳定 active 并清零计数。
- * 状态按候选身份（`base`）键控：目录重排/增删不会张冠李戴，
- * 为用户排序持久化与自定义候选等扩展预留正确语义。
+ * 身份 = 镜像名（用户填写，唯一稳定）；游标（active）独立于目录顺序，
+ * 仅在「active 候选自身失败」时按池顺序推进——非 active 候选的失败
+ * 只累积其自身连败与拉黑，绝不拖动游标。
  */
 export class MirrorCursor {
-	private activeBase: string;
+	private current = '';
+	private order: string[] = [];
 	private streaks = new Map<string, number>();
 	private blacklist = new Map<string, number>();
+	private now: () => number;
 
-	constructor(
-		private catalog: readonly MirrorCandidate[],
-		private now: () => number = () => Date.now(),
-	) {
-		this.activeBase = this.catalog[0]?.base ?? '';
+	constructor(now: () => number = () => Date.now()) {
+		this.now = now;
 	}
 
-	/** 候选身份键：`prefix` 型以 base 为天然稳定键（未来其他替换方式在此外扩展）。 */
-	private key(candidate: MirrorCandidate): string {
-		return candidate.base;
+	/** 同步池顺序（池管理操作后调用）；状态按名字保留，孤儿清理。 */
+	setOrder(names: string[]): void {
+		this.order = names;
+		const alive = new Set(names);
+		for (const key of [...this.streaks.keys()]) {
+			if (!alive.has(key)) {
+				this.streaks.delete(key);
+			}
+		}
+		for (const key of [...this.blacklist.keys()]) {
+			if (!alive.has(key)) {
+				this.blacklist.delete(key);
+			}
+		}
+		if (!names.includes(this.current) && names.length) {
+			this.current = names[0] ?? '';
+		}
+		if (this.current && this.isBlacklisted(this.current)) {
+			this.advanceActive();
+		}
 	}
 
-	/** 当前 active 候选（按身份回查目录，异常时回退目录首项）。 */
-	active(): MirrorCandidate | undefined {
-		return (
-			this.catalog.find((c) => c.base === this.activeBase) ??
-			this.catalog[0]
-		);
+	/** 当前 active 镜像名。 */
+	get activeName(): string {
+		return this.current;
+	}
+
+	/** 显式定位 active（播种/恢复初始状态/全池首测预定位）。 */
+	setActive(name: string): void {
+		if (this.order.includes(name)) {
+			this.current = name;
+		}
 	}
 
 	/**
 	 * 查询候选是否处于拉黑状态：冷却期满（30 分钟）自动解除
 	 * 并清零连败——给镜像完整的重新预算，重新进入轮转。
 	 */
-	isBlacklisted(candidate: MirrorCandidate): boolean {
-		const at = this.blacklist.get(this.key(candidate));
+	isBlacklisted(name: string): boolean {
+		const at = this.blacklist.get(name);
 		if (at === undefined) {
 			return false;
 		}
 		if (this.now() - at >= BLACKLIST_COOLDOWN_MS) {
-			this.blacklist.delete(this.key(candidate));
-			this.streaks.delete(this.key(candidate));
+			this.blacklist.delete(name);
+			this.streaks.delete(name);
 			return false;
 		}
 		return true;
 	}
 
-	/** 记一次请求结果（candidate 为发送时的候选）。 */
-	record(candidate: MirrorCandidate, failed: boolean): void {
-		// 拉黑冷却期内的迟回复不计成败、不推游标（该候选本会话已停用）。
-		if (this.isBlacklisted(candidate)) {
-			return;
+	/** 记一次请求结果（name 为实际发送时所用的镜像名）。 */
+	record(name: string, failed: boolean): void {
+		if (this.isBlacklisted(name)) {
+			return; // 冷却期内的迟回复不计成败
 		}
-		const key = this.key(candidate);
 		if (!failed) {
-			this.streaks.delete(key);
-			this.activeBase = key;
+			this.streaks.delete(name);
 			return;
 		}
-		const next = (this.streaks.get(key) ?? 0) + 1;
-		this.streaks.set(key, next);
+		const next = (this.streaks.get(name) ?? 0) + 1;
+		this.streaks.set(name, next);
 		if (next >= BLACKLIST_THRESHOLD) {
-			this.blacklist.set(key, this.now());
+			this.blacklist.set(name, this.now());
 		}
-		this.advance(candidate);
+		if (name === this.current) {
+			this.advanceActive();
+		}
 	}
 
-	/** 会话复位（onload / 设置页重置调用）：游标回目录首项，清空连败与拉黑。 */
+	/** 会话复位（onload / 设置页重置调用）：游标回首项，清空连败与拉黑。 */
 	reset(): void {
-		this.activeBase = this.catalog[0]?.base ?? '';
+		this.current = this.order[0] ?? '';
 		this.streaks.clear();
 		this.blacklist.clear();
 	}
 
-	/** 失败后推进：跳过拉黑（含冷却中）项；全部拉黑时停留原地（失败如实呈现）。 */
-	private advance(from: MirrorCandidate): void {
-		const length = this.catalog.length;
-		const fromIndex = this.catalog.indexOf(from);
+	/** 手动切换到下一个未拉黑候选（设置页按钮）。 */
+	switchNext(): void {
+		this.advanceActive();
+	}
+
+	/** 失败后推进：从 active 起按池顺序找下一个未拉黑候选；全拉黑停留原地。 */
+	private advanceActive(): void {
+		const from = this.order.indexOf(this.current);
+		const length = this.order.length;
+		if (from === -1 || length === 0) {
+			return;
+		}
 		for (let step = 1; step <= length; step++) {
-			const candidate = this.catalog[(fromIndex + step) % length];
-			if (candidate && !this.isBlacklisted(candidate)) {
-				this.activeBase = this.key(candidate);
+			const name = this.order[(from + step) % length];
+			if (name !== undefined && !this.isBlacklisted(name)) {
+				this.current = name;
 				return;
 			}
 		}
@@ -302,28 +409,122 @@ function requireIpcRenderer(): IpcLike | null {
 export class RequestUrlAccelerator {
 	private ipc: IpcLike | null = null;
 	private originalSend: IpcLike['send'] | null = null;
-	private cursor = new MirrorCursor(MIRROR_CATALOG);
+	private cursor = new MirrorCursor();
+	private pool: MirrorCandidate[] = DEFAULT_POOL;
+	/** 最近一次可达性测试结果（按镜像名键控）。 */
+	private testResults = new Map<string, MirrorTestResult>();
+	/** 未被任何映射覆盖的 GitHub 已知域 host → 未覆盖时经由的镜像名。 */
+	private uncovered = new Map<string, string>();
+	/** 本加速会话是否已做过全池首测（会话 = 插件启用至卸载）。 */
+	private sessionTested = false;
 
 	get mounted(): boolean {
 		return this.originalSend !== null;
 	}
 
+	/** 查询镜像的最近测试结果（设置页展示用）。 */
+	getTestResult(name: string): MirrorTestResult | undefined {
+		return this.testResults.get(name);
+	}
+
+	/** 未覆盖的 GitHub 已知域（host + 未覆盖时经由的镜像名，按 host 字典序）。 */
+	getUncovered(): { host: string; mirror: string }[] {
+		return [...this.uncovered.entries()]
+			.map(([host, mirror]) => ({ host, mirror }))
+			.sort((a, b) => a.host.localeCompare(b.host));
+	}
+
 	/** 镜像池状态快照（设置页只读展示用）。 */
 	getStatus(): MirrorStatus[] {
-		const active = this.cursor.active();
-		return MIRROR_CATALOG.map((candidate) => ({
-			label: candidate.label,
-			active: candidate.base === active?.base,
-			blacklisted: this.cursor.isBlacklisted(candidate),
+		const active = this.cursor.activeName;
+		return this.pool.map((candidate) => ({
+			label: candidate.name,
+			active: candidate.name === active,
+			blacklisted: this.cursor.isBlacklisted(candidate.name),
+			testResult: this.testResults.get(candidate.name)?.detail,
 		}));
+	}
+
+	/** 同步用户镜像池（池管理操作后调用；游标状态按镜像名保留与清理）。 */
+	setPool(pool: MirrorCandidate[]): void {
+		// 目录即偏好：首项变更（重排/删首项）= 重新声明优先级，游标跟随新首项。
+		const firstChanged = this.pool[0]?.name !== pool[0]?.name;
+		this.cursor.setOrder(
+			pool.map((m) => m.name),
+		);
+		this.pool = pool;
+		if (firstChanged) {
+			this.cursor.setActive(pool[0]?.name ?? '');
+		}
+		this.uncovered.clear(); // 池变更后重新由真实流量评估
+		const names = new Set(pool.map((c) => c.name));
+		for (const key of [...this.testResults.keys()]) {
+			if (!names.has(key)) {
+				this.testResults.delete(key);
+			}
+		}
 	}
 
 	/** 复位镜像切换状态：游标回首项、清空连败与拉黑（设置页按钮调用）。 */
 	resetCursor(): void {
 		this.cursor.reset();
+		this.uncovered.clear();
+		this.testResults.clear();
 	}
 
-	/** 挂载改写与观测。返回是否挂载成功；false 为环境不满足（静默跳过）。 */
+	/** 手动切换到下一个未拉黑候选（设置页按钮调用）。 */
+	switchNext(): void {
+		this.cursor.switchNext();
+	}
+
+	/**
+	 * 可达性测试：github 与 raw 双探针按候选映射分别改写后并发 GET，
+	 * 任一探针失败即记 1 败；结果分行展示（github / raw 各自的成败与耗时）。
+	 */
+	async testMirror(candidate: MirrorCandidate): Promise<MirrorTestResult> {
+		const name = candidate.name;
+		this.testResults.set(name, { ok: false, detail: '测试中…' });
+		const [github, raw] = await Promise.all([
+			this.probeOne(PROBE_GITHUB_URL, PROBE_GITHUB_MARKER, candidate),
+			this.probeOne(PROBE_RAW_URL, PROBE_RAW_MARKER, candidate),
+		]);
+		const ok = github.ok && raw.ok;
+		const prefix = ok ? '✓' : '✗';
+		const result: MirrorTestResult = {
+			ok,
+			detail: `${prefix} github ${github.detail} · raw ${raw.detail}`,
+		};
+		this.testResults.set(name, result);
+		this.cursor.record(name, !ok);
+		return result;
+	}
+
+	/** 全池首测：并发测试池内全部镜像，完成后确定性稳定到首个可用候选。 */
+	async testAll(): Promise<void> {
+		this.sessionTested = true;
+		await Promise.all(this.pool.map((c) => this.testMirror(c)));
+		const firstUsable = this.pool.find((c) => {
+			const r = this.testResults.get(c.name);
+			return r?.ok && !this.cursor.isBlacklisted(c.name);
+		});
+		if (firstUsable) {
+			this.cursor.setActive(firstUsable.name);
+		}
+	}
+
+	/**
+	 * 加速会话开始时全池首测（每会话至多一轮）：统一各行测试状态，
+	 * 并把游标预定位到首个可用镜像。池重建（恢复初始状态）的重测不受此限。
+	 */
+	ensureSessionTest(): void {
+		if (this.sessionTested) {
+			return;
+		}
+		this.sessionTested = true;
+		void this.testAll();
+	}
+
+	/** 挂载 request-url 频道改写与健康观测。返回是否挂载成功；false 为环境不满足（静默跳过）。 */
 	install(getConfig: () => AcceleratorConfig): boolean {
 		if (this.mounted) {
 			return true;
@@ -339,14 +540,25 @@ export class RequestUrlAccelerator {
 			if (channel === REQUEST_URL_CHANNEL) {
 				const config = getConfig();
 				if (config.enabled) {
-					const candidate = this.cursor.active();
+					const name = this.cursor.activeName;
+					const candidate = this.pool.find((m) => m.name === name);
 					if (candidate) {
 						const url = extractUrl(args);
 						rewriteArgsInPlace(args, candidate);
-						if (candidate.type === 'prefix' && url) {
+						if (url !== undefined) {
+							// 未覆盖告知：改写后 url 未变且属已知域 → 记录 host
+							//（连同当时的镜像名）；命中映射 → 清除该 host 的未覆盖标记。
+							const after = extractUrl(args);
+							if (after === url) {
+								if (isKnownGithubUrl(url)) {
+									this.uncovered.set(hostOf(url), name);
+								}
+							} else {
+								this.uncovered.delete(hostOf(url));
+							}
 							const requestId = args[0];
 							if (typeof requestId === 'string') {
-								this.observe(ipc, candidate, requestId, url);
+								this.observe(ipc, name, requestId, url);
 							}
 						}
 					}
@@ -371,17 +583,14 @@ export class RequestUrlAccelerator {
 
 	/**
 	 * 被动观测：在请求 ID 频道挂一次性监听，按响应 `status` 对该候选记账；
-	 * 回复结构变化（无 `status`）静默跳过；超时兜底自摘并记一次失败。
+	 * 回复到达或超时后移除监听，防止监听泄漏。
 	 */
 	private observe(
 		ipc: IpcLike,
-		candidate: MirrorCandidate,
+		name: string,
 		requestId: string,
 		url: string,
 	): void {
-		if (typeof ipc.on !== 'function' || typeof ipc.removeListener !== 'function') {
-			return;
-		}
 		let done = false;
 		const onReply = (...replyArgs: unknown[]) => {
 			if (done) {
@@ -391,7 +600,7 @@ export class RequestUrlAccelerator {
 			cleanup();
 			const verdict = judgeReply(replyArgs[1], url);
 			if (verdict !== undefined) {
-				this.cursor.record(candidate, verdict);
+				this.cursor.record(name, verdict);
 			}
 		};
 		const cleanup = () => {
@@ -404,8 +613,49 @@ export class RequestUrlAccelerator {
 			}
 			done = true;
 			cleanup();
-			this.cursor.record(candidate, true); // 观测超时：按失败记账
+			this.cursor.record(name, true); // 观测超时：按失败记账
 		}, OBSERVE_TIMEOUT_MS);
-		ipc.on(requestId, onReply);
+		ipc.on?.(requestId, onReply);
+	}
+
+
+	/** 单探针：按候选映射改写后 GET，双层判定（HTTP 语义 + 2xx 内容指纹）。 */
+	private async probeOne(
+		url: string,
+		marker: string,
+		candidate: MirrorCandidate,
+	): Promise<{ ok: boolean; detail: string }> {
+		const start = Date.now();
+		try {
+			const target = rewriteUrl(url, candidate);
+			const res = await requestUrl({
+				url: target,
+				method: 'GET',
+				throw: false,
+			});
+			const ms = Date.now() - start;
+			const text = res.text;
+			const statusFailed = isMirrorFailure(res.status, url);
+			const contentFailed =
+				!statusFailed &&
+				res.status >= 200 &&
+				res.status < 300 &&
+				!text.includes(marker);
+			if (statusFailed) {
+				return { ok: false, detail: `✗ HTTP ${res.status}（${ms} ms）` };
+			}
+			if (contentFailed) {
+				return {
+					ok: false,
+					detail: `✗ HTTP ${res.status} 内容异常（${text.length} B，疑似非镜像响应）`,
+				};
+			}
+			return { ok: true, detail: `✓ ${ms} ms` };
+		} catch (err) {
+			return {
+				ok: false,
+				detail: `✗ ${err instanceof Error ? err.message : String(err)}`,
+			};
+		}
 	}
 }
