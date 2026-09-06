@@ -7,14 +7,14 @@ available in the app when your plugin is enabled.
 
 /* 镜像池条目（P-003）：名字可点击展开映射详情；展开区为只读映射清单 */
 .turbo-clickable {
-	cursor: pointer;
+  cursor: pointer;
 }
 
 .turbo-detail {
-	margin: 0.3em 0 0.6em 1.2em;
-	padding: 0.4em 0.6em;
-	border-left: 2px solid var(--background-modifier-border);
-	color: var(--text-muted);
-	font-size: 0.85em;
-	word-break: break-all;
+  margin: 0.3em 0 0.6em 1.2em;
+  padding: 0.4em 0.6em;
+  border-left: 2px solid var(--background-modifier-border);
+  color: var(--text-muted);
+  font-size: 0.85em;
+  word-break: break-all;
 }
