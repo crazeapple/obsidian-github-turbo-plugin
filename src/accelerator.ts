@@ -41,7 +41,9 @@ export interface MirrorCandidate {
 
 /**
  * 默认种子池：首次使用（无 pool 键）时播种；有序（最优在前），顺序即回退顺序。
- * 种子集合为实现期决策——入选镜像须实测可用（spec P-003），按实测可靠性排序。
+ * 种子集合为实现期实测筛选（2026-09-06 双探针实测，14 候选 → 4 可用，
+ * 按耗时排序）；ghfast.top / github.moeyy.xyz 本轮失联淘汰，
+ * 公共镜像波动剧烈，失效项由被动观测自动拉黑回退。
  */
 export const DEFAULT_POOL: MirrorCandidate[] = [
 	{
@@ -54,6 +56,19 @@ export const DEFAULT_POOL: MirrorCandidate[] = [
 			{
 				from: 'https://raw.githubusercontent.com/',
 				to: 'https://gh-proxy.com/https://raw.githubusercontent.com/',
+			},
+		],
+	},
+	{
+		name: 'cors.isteed.cc',
+		mappings: [
+			{
+				from: 'https://github.com/',
+				to: 'https://cors.isteed.cc/https://github.com/',
+			},
+			{
+				from: 'https://raw.githubusercontent.com/',
+				to: 'https://cors.isteed.cc/https://raw.githubusercontent.com/',
 			},
 		],
 	},
@@ -71,28 +86,15 @@ export const DEFAULT_POOL: MirrorCandidate[] = [
 		],
 	},
 	{
-		name: 'ghfast.top',
+		name: 'gh.ddlc.top',
 		mappings: [
 			{
 				from: 'https://github.com/',
-				to: 'https://ghfast.top/https://github.com/',
+				to: 'https://gh.ddlc.top/https://github.com/',
 			},
 			{
 				from: 'https://raw.githubusercontent.com/',
-				to: 'https://ghfast.top/https://raw.githubusercontent.com/',
-			},
-		],
-	},
-	{
-		name: 'github.moeyy.xyz',
-		mappings: [
-			{
-				from: 'https://github.com/',
-				to: 'https://github.moeyy.xyz/https://github.com/',
-			},
-			{
-				from: 'https://raw.githubusercontent.com/',
-				to: 'https://github.moeyy.xyz/https://raw.githubusercontent.com/',
+				to: 'https://gh.ddlc.top/https://raw.githubusercontent.com/',
 			},
 		],
 	},
@@ -303,6 +305,13 @@ export class MirrorCursor {
 		}
 	}
 
+	/** 显式稳定指定候选为 active（全池首测后的确定性预定位）。 */
+	stabilize(name: string): void {
+		if (this.order.includes(name)) {
+			this.current = name;
+		}
+	}
+
 	/**
 	 * 查询候选是否处于拉黑状态：冷却期满（30 分钟）自动解除
 	 * 并清零连败——给镜像完整的重新预算，重新进入轮转。
@@ -415,6 +424,8 @@ export class RequestUrlAccelerator {
 	private testResults = new Map<string, MirrorTestResult>();
 	/** 未被任何映射覆盖的 GitHub 已知域 host → 未覆盖时经由的镜像名。 */
 	private uncovered = new Map<string, string>();
+	/** 上次池首项名（引擎自持快照）：首项变更检测依据，见 setPool。 */
+	private lastFirst = DEFAULT_POOL[0]?.name ?? '';
 	/** 本加速会话是否已做过全池首测（会话 = 插件启用至卸载）。 */
 	private sessionTested = false;
 
@@ -448,7 +459,10 @@ export class RequestUrlAccelerator {
 	/** 同步用户镜像池（池管理操作后调用；游标状态按镜像名保留与清理）。 */
 	setPool(pool: MirrorCandidate[]): void {
 		// 目录即偏好：首项变更（重排/删首项）= 重新声明优先级，游标跟随新首项。
-		const firstChanged = this.pool[0]?.name !== pool[0]?.name;
+		// 对比对象须为引擎自持快照而非 this.pool——调用方（main.ts 池管理）
+		// 原地变更后传同一数组引用，引用别名会使首项对比恒等、游标滞留。
+		const firstChanged = this.lastFirst !== (pool[0]?.name ?? '');
+		this.lastFirst = pool[0]?.name ?? '';
 		this.cursor.setOrder(
 			pool.map((m) => m.name),
 		);

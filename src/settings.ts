@@ -318,14 +318,13 @@ export class TurboSettingTab extends PluginSettingTab {
 			return;
 		}
 		const name = this.addDraft.name.trim();
+		// 尾斜杠归一：剥全部尾斜杠后补单个，杜绝 to// 双斜杠改写
+		const norm = (s: string): string => `${s.trim().replace(/\/+$/, '')}/`;
 		const ok = this.plugin.addMirror({
 			name,
 			mappings: [
-				{ from: 'https://github.com/', to: `${this.addDraft.toGithub.trim()}/` },
-				{
-					from: 'https://raw.githubusercontent.com/',
-					to: `${this.addDraft.toRaw.trim()}/`,
-				},
+				{ from: 'https://github.com/', to: norm(this.addDraft.toGithub) },
+				{ from: 'https://raw.githubusercontent.com/', to: norm(this.addDraft.toRaw) },
 			],
 		});
 		if (ok) {
