@@ -25,6 +25,8 @@ interface AddDraft {
 /**
  * 设置页：总开关 + 当前镜像（控件内只读）+ 手动切换 + 镜像池管理
  * （添加/删除/排序/行级测试/未覆盖提示/恢复初始状态）；状态 1s 轮询实时跟随。
+ * 声明式设置 API（Obsidian 1.13+ 搜索索引用）暂缓：dev typings 1.12.3 尚无该
+ * API，且动态池管理 UI 的采纳属功能级变更（如需另立提案）。
  */
 export class TurboSettingTab extends PluginSettingTab {
   plugin: GitHubTurbo;
@@ -266,7 +268,7 @@ export class TurboSettingTab extends PluginSettingTab {
           }),
       );
     new Setting(this.addFormEl)
-      .setName('raw 域映射到')
+      .setName('Raw 域映射到')
       .setDesc('改写 https://raw.githubusercontent.com/ 前缀')
       .addText((text) =>
         text
