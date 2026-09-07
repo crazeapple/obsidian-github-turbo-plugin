@@ -31,11 +31,11 @@ available in the app when your plugin is enabled.
 }
 
 .turbo-dot-active {
-  background: var(--text-success);
+  background: #00c853;
 }
 
 .turbo-dot-blacklisted {
-  background: var(--text-error);
+  background: #ff3b30;
 }
 
 /* desc 测试结果：符号绑定颜色（✓ 绿 / ✗ 红），其余文本默认色；
@@ -45,11 +45,11 @@ available in the app when your plugin is enabled.
 }
 
 .turbo-test-ok {
-  color: var(--text-success);
+  color: #00c853;
 }
 
 .turbo-test-error {
-  color: var(--text-error);
+  color: #ff3b30;
 }
 
 /* 未覆盖警示行 */
