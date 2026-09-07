@@ -1,6 +1,6 @@
 {
   "name": "obsidian-github-turbo-plugin",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Accelerate GitHub access for Obsidian's built-in community plugin & theme marketplace (mirror URL rewriting)",
   "main": "main.js",
   "type": "module",
