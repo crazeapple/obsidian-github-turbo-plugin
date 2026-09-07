@@ -174,7 +174,7 @@ export class TurboSettingTab extends PluginSettingTab {
     addGroup.addSetting((s) => {
       s.setName('github.com maps to')
         .setDesc(
-          'Prefix style: mirror prefix + https://github.com/ · Domain style: replacement domain/.',
+          'Prefix style: mirror prefix + https://github.com/ · Domain style: mirror domain replaces github.com',
         )
         .addText((text) => {
           text.setPlaceholder('https://gh-proxy.com/https://github.com/');
@@ -214,7 +214,7 @@ export class TurboSettingTab extends PluginSettingTab {
     resetGroup.setHeading('Restore defaults');
     resetGroup.addSetting((s) => {
       s.setDesc(
-        'Reset the cursor and blacklist, rebuild the seed pool and run a full health test.',
+        'Restore the built-in mirror list, clear test failures and blacklist, and run a full health test.',
       );
       s.addButton((button) =>
         button.setButtonText('Reset').onClick(() => {
@@ -233,11 +233,11 @@ export class TurboSettingTab extends PluginSettingTab {
       return;
     }
     const statuses = this.plugin.mirrorStatus;
-    this.syncUncovered(statuses);
+    this.syncUncovered();
     this.syncPoolRows(statuses);
   }
 
-  private syncUncovered(statuses: MirrorStatus[]): void {
+  private syncUncovered(): void {
     if (!this.uncoveredRow || !this.uncoveredEl) {
       return;
     }
@@ -246,11 +246,10 @@ export class TurboSettingTab extends PluginSettingTab {
       this.uncoveredRow.settingEl.hide();
       return;
     }
-    const active = statuses.find((s) => s.active);
     this.uncoveredEl.setText(
-      `⚠ Uncovered GitHub domains (going direct): ${uncovered
-        .map((u) => `${u.host} (via ${u.mirror})`)
-        .join(', ')} · Current mirror: ${active?.label ?? '—'}`,
+      `⚠ Uncovered GitHub domains, going direct: ${uncovered
+        .map((u) => `${u.host} (not covered by ${u.mirror})`)
+        .join(', ')}`,
     );
     this.uncoveredRow.settingEl.show();
   }

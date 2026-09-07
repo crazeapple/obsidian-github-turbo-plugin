@@ -657,12 +657,12 @@ export class RequestUrlAccelerator {
         res.status < 300 &&
         !text.includes(marker);
       if (statusFailed) {
-        return { ok: false, detail: `HTTP ${res.status}（${ms} ms）` };
+        return { ok: false, detail: `HTTP ${res.status} (${ms} ms)` };
       }
       if (contentFailed) {
         return {
           ok: false,
-          detail: `HTTP ${res.status} 内容异常（${text.length} B，疑似非镜像响应）`,
+          detail: `HTTP ${res.status} unexpected content (${text.length} B, likely not a mirror response)`,
         };
       }
       return { ok: true, detail: `${ms} ms` };
