@@ -2,7 +2,7 @@
   "id": "obsidian-github-turbo-plugin",
   "name": "GitHub Turbo",
   "version": "1.2.0",
-  "minAppVersion": "1.2.3",
+  "minAppVersion": "1.11.0",
   "description": "加速 Obsidian 内置社区插件与主题市场的 GitHub 访问（镜像地址改写）",
   "author": "Obsidian",
   "authorUrl": "https://obsidian.md",

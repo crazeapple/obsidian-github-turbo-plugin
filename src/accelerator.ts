@@ -104,7 +104,7 @@ export const DEFAULT_POOL: MirrorCandidate[] = [
 export interface MirrorTestResult {
   /** 是否可达。 */
   ok: boolean;
-  /** 结果描述：✓ 耗时 / ✗ 原因。 */
+  /** 结果描述：逐映射分段「✓/✗ 名称 耗时/原因」拼接。 */
   detail: string;
 }
 
@@ -493,20 +493,21 @@ export class RequestUrlAccelerator {
 
   /**
    * 可达性测试：github 与 raw 双探针按候选映射分别改写后并发 GET，
-   * 任一探针失败即记 1 败；结果分行展示（github / raw 各自的成败与耗时）。
+   * 任一探针失败即记 1 败；结果逐映射分段展示（符号 + 名称 + 耗时/原因）。
    */
   async testMirror(candidate: MirrorCandidate): Promise<MirrorTestResult> {
     const name = candidate.name;
-    this.testResults.set(name, { ok: false, detail: '测试中…' });
+    this.testResults.set(name, { ok: false, detail: 'Testing…' });
     const [github, raw] = await Promise.all([
       this.probeOne(PROBE_GITHUB_URL, PROBE_GITHUB_MARKER, candidate),
       this.probeOne(PROBE_RAW_URL, PROBE_RAW_MARKER, candidate),
     ]);
     const ok = github.ok && raw.ok;
-    const prefix = ok ? '✓' : '✗';
+    // 每映射一段「符号 + 名称 + 耗时/原因」：一映射一状态，一状态一符号
+    const mark = (probe: { ok: boolean }): string => (probe.ok ? '✓' : '✗');
     const result: MirrorTestResult = {
       ok,
-      detail: `${prefix} github ${github.detail} · raw ${raw.detail}`,
+      detail: `${mark(github)} github ${github.detail} · ${mark(raw)} raw ${raw.detail}`,
     };
     this.testResults.set(name, result);
     this.cursor.record(name, !ok);
@@ -633,7 +634,7 @@ export class RequestUrlAccelerator {
   }
 
 
-  /** 单探针：按候选映射改写后 GET，双层判定（HTTP 语义 + 2xx 内容指纹）。 */
+  /** 单探针：按候选映射改写后 GET，双层判定（HTTP 语义 + 2xx 内容指纹）；detail 不含符号。 */
   private async probeOne(
     url: string,
     marker: string,
@@ -656,19 +657,19 @@ export class RequestUrlAccelerator {
         res.status < 300 &&
         !text.includes(marker);
       if (statusFailed) {
-        return { ok: false, detail: `✗ HTTP ${res.status}（${ms} ms）` };
+        return { ok: false, detail: `HTTP ${res.status}（${ms} ms）` };
       }
       if (contentFailed) {
         return {
           ok: false,
-          detail: `✗ HTTP ${res.status} 内容异常（${text.length} B，疑似非镜像响应）`,
+          detail: `HTTP ${res.status} 内容异常（${text.length} B，疑似非镜像响应）`,
         };
       }
-      return { ok: true, detail: `✓ ${ms} ms` };
+      return { ok: true, detail: `${ms} ms` };
     } catch (err) {
       return {
         ok: false,
-        detail: `✗ ${err instanceof Error ? err.message : String(err)}`,
+        detail: `${err instanceof Error ? err.message : String(err)}`,
       };
     }
   }

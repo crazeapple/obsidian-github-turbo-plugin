@@ -5,16 +5,63 @@ available in the app when your plugin is enabled.
 
 */
 
-/* 镜像池条目（P-003）：名字可点击展开映射详情；展开区为只读映射清单 */
-.turbo-clickable {
-  cursor: pointer;
+/* 池条目展开详情（P-004）：以兄弟节点挂载，展开于条目行正下方；映射单行、去协议前缀与尾斜杠；
+   左内边距由 attachDetail 实测写入（对齐镜像名文本），此处只定右侧与字号 */
+.turbo-detail {
+  margin: -2px 0 0.6em 0;
+  padding: 0 14px 0 14px;
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
-.turbo-detail {
-  margin: 0.3em 0 0.6em 1.2em;
-  padding: 0.4em 0.6em;
-  border-left: 2px solid var(--background-modifier-border);
-  color: var(--text-muted);
-  font-size: 0.85em;
+.turbo-map {
+  font-family: var(--font-monospace);
   word-break: break-all;
+}
+
+/* 名称前状态点：占位保证各行等宽缩进（当前=绿 / 拉黑=红 / 普通=灰） */
+.turbo-dot {
+  display: inline-block;
+  margin-right: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  vertical-align: middle;
+}
+
+.turbo-dot-active {
+  background: var(--text-success);
+}
+
+.turbo-dot-blacklisted {
+  background: var(--text-error);
+}
+
+/* desc 测试结果：符号绑定颜色（✓ 绿 / ✗ 红），其余文本默认色；
+   整行按状态点占位宽缩进，与镜像名文本对齐 */
+.turbo-status {
+  padding-left: 14px;
+}
+
+.turbo-test-ok {
+  color: var(--text-success);
+}
+
+.turbo-test-error {
+  color: var(--text-error);
+}
+
+/* 未覆盖警示行 */
+.turbo-warning-row .setting-item-description {
+  color: var(--text-warning);
+}
+
+/* 表单提示行：操作引导（灰）/ 点击校验失败原因（红） */
+.turbo-form-hint {
+  color: var(--text-muted);
+}
+
+.turbo-form-error {
+  color: var(--text-error);
 }
