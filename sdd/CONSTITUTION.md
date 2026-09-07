@@ -5,7 +5,7 @@
 - 三层实体：**Intent（I-XXX，总纲）**——模糊需求的产品层澄清与路线图，不进状态机；**Proposal（P-XXX）**——可独立验收的开发单元（基础件或功能块），真正的开发循环从这里开始；**Task（T-XXX，可数十个、可分组）**——design 任务清单内，禁止单独建文件。
 - Proposal 粒度：必须是一个可独立验收的开发单元，禁止以产品版本形态立项（如「XX 第一版/首版」标题）；产品级、多交付物或模糊需求先入意向池拆解为总纲，再拆出 Proposal；两级拆分（I 拆 P、P 拆 T）不跨层。
 - 受理两路：单交付物需求由 `/sdd-intake` 直接发 P（无 source）；多交付物或模糊需求先入 `INITIATIVE.md` 立 I，拆解后发 P（frontmatter `source: I-XXX`）。
-- 分区治理：`sdd/exploring/`（探索区，格式宽松，文件数 = 活跃探索数 + 1，含 journal.md——追加式探索日志，行格式 `YYYY-MM-DD P-XXX 结论或去向`，只追加不重写；finalize 时追加处置行后随探索文件一并删除）与 `sdd/specs/`（稳定区，格式严格、变更留痕，每提案一目录：spec.md 与 design.md）物理分离；修正隔离在 `amendments/` 与意向池；归档只从稳定区取材。
+- 分区治理：`sdd/exploring/`（探索区，格式宽松，文件数 = 活跃探索数 + 1，含 journal.md——追加式探索日志，探索过程完整永久档案（探索正文除 frontmatter 整体归档入 journal，不用简记行），只追加不重写；finalize 时正文归档后删除探索文件）与 `sdd/specs/`（稳定区，格式严格、变更留痕，每提案一目录：spec.md 与 design.md）物理分离；修正隔离在 `amendments/` 与意向池；归档只从稳定区取材。
 - **不预建**运行态目录：exploring/、specs/、journal.md 均动态形成；INITIATIVE.md 与 amendments/README.md 由初始化生成。
 
 ## 权威源、ID 与日期
