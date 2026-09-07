@@ -559,22 +559,22 @@ export class RequestUrlAccelerator {
           const candidate = this.pool.find((m) => m.name === name);
           if (candidate) {
             const url = extractUrl(args);
-            rewriteArgsInPlace(args, candidate);
-            if (url !== undefined) {
-              // 未覆盖告知：改写后 url 未变且属已知域 → 记录 host
-              //（连同当时的镜像名）；命中映射 → 清除该 host 的未覆盖标记。
-              const after = extractUrl(args);
-              if (after === url) {
-                if (isKnownGithubUrl(url)) {
-                  this.uncovered.set(hostOf(url), name);
-                }
-              } else {
-                this.uncovered.delete(hostOf(url));
-              }
+            // 经由判定：仅「命中本 active 映射」的流量才改写 + 被动记账。
+            // 探针流量已被 testMirror 预改写为目标镜像（rewriteUrl 幂等，
+            // 二次改写不变）→ 落未命中分支，其成败由 testMirror 主动记账，
+            // 绝不拖动 active；市场直连（未覆盖）流量同样不记账。
+            const target =
+              url !== undefined ? rewriteUrl(url, candidate) : undefined;
+            if (url !== undefined && target !== url) {
+              rewriteArgsInPlace(args, candidate);
+              this.uncovered.delete(hostOf(url));
               const requestId = args[0];
               if (typeof requestId === 'string') {
                 this.observe(ipc, name, requestId, url);
               }
+            } else if (url !== undefined && isKnownGithubUrl(url)) {
+              // 未覆盖告知：未命中映射且属已知域 → 记录 host（连同当时的镜像名）
+              this.uncovered.set(hostOf(url), name);
             }
           }
         }
