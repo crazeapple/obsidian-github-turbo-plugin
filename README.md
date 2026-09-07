@@ -3,7 +3,7 @@
 加速 Obsidian **内置社区插件/主题市场** 的 GitHub 访问：在渲染进程侧把市场请求的 GitHub 地址改写为镜像地址，无需系统代理或 VPN。
 
 - 插件 ID：`obsidian-github-turbo-plugin` · 名称：GitHub Turbo
-- 平台：Obsidian 桌面端（≥ 1.2.3）；不支持移动端
+- 平台：Obsidian 桌面端（≥ 1.11.0，设置页依赖原生 SettingGroup 组件）；不支持移动端
 - 不发布到官方社区插件库，手动部署使用
 
 ## 定位
