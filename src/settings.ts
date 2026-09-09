@@ -106,7 +106,8 @@ export class TurboSettingTab extends PluginSettingTab {
     const base = new SettingGroup(containerEl);
     base.setHeading('GitHub Turbo');
     base.addSetting((s) => {
-      s.setDesc(
+      // 版本信息作为介绍行的 name，介绍文字作 desc
+      s.setName(`Version: ${this.plugin.manifest.version}`).setDesc(
         'Rewrites GitHub URLs through mirrors to speed up the built-in community plugin & theme marketplace.',
       );
     });
