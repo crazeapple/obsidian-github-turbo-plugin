@@ -10,6 +10,7 @@ import {
 import {
   AcceleratorConfig,
   DEFAULT_ACCELERATOR_CONFIG,
+  displayEndpoint,
   MirrorStatus,
 } from './accelerator';
 import GitHubTurbo from './main';
@@ -22,10 +23,6 @@ export interface TurboSettings {
 export const DEFAULT_SETTINGS: TurboSettings = {
   accelerator: DEFAULT_ACCELERATOR_CONFIG,
 };
-
-/** 展示层压缩映射端点：去协议前缀与尾斜杠（纯渲染，存储真值不变）。 */
-const displayEndpoint = (url: string): string =>
-  url.replace(/^https:\/\//, '').replace(/\/+$/, '');
 
 /** 添加表单操作引导文案（合法态提示）。 */
 const ADD_HINT =
@@ -208,6 +205,23 @@ export class TurboSettingTab extends PluginSettingTab {
     });
     this.addForm = { nameText, githubText, rawText };
     this.setAddHint(ADD_HINT, false);
+
+    // —— 调试区（恢复初始状态上方；P-005） ——
+    const debugGroup = new SettingGroup(containerEl);
+    debugGroup.setHeading('Debug logs');
+    debugGroup.addSetting((s) => {
+      s.setName('Debug logging').setDesc(
+        'Log GitHub requests to the developer console: [REWRITE] origin → rewritten, or [DIRECT] when uncovered.',
+      );
+      s.addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.accelerator.debug)
+          .onChange(async (value) => {
+            this.plugin.settings.accelerator.debug = value;
+            await this.plugin.saveSettings();
+          }),
+      );
+    });
 
     // —— 恢复初始状态区（独立区，置于最后） ——
     const resetGroup = new SettingGroup(containerEl);

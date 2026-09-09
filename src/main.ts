@@ -173,6 +173,7 @@ export default class GitHubTurbo extends Plugin {
           name: m.name,
           mappings: m.mappings.map((p) => ({ from: p.from, to: p.to })),
         })),
+      debug: stored?.debug ?? DEFAULT_ACCELERATOR_CONFIG.debug,
     };
     if (seeded) {
       await this.saveSettings();

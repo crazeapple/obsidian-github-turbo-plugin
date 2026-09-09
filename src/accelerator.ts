@@ -126,11 +126,14 @@ export interface AcceleratorConfig {
   enabled: boolean;
   /** 用户镜像池（有序）：条目 = 名字 + 映射对列表，纯用户池模型。 */
   pool: MirrorCandidate[];
+  /** 调试日志：开启后 console 输出 [REWRITE]/[DIRECT] 行（P-005）。 */
+  debug: boolean;
 }
 
 export const DEFAULT_ACCELERATOR_CONFIG: AcceleratorConfig = {
   enabled: true,
   pool: [],
+  debug: false,
 };
 
 /**
@@ -145,6 +148,11 @@ export const GITHUB_PREFIXES = [
 /** 判定 url 是否属于 GitHub 已知域。 */
 export function isKnownGithubUrl(url: string): boolean {
   return GITHUB_PREFIXES.some((prefix) => url.startsWith(prefix));
+}
+
+/** 展示层压缩 URL：去协议前缀与尾斜杠（纯展示，存储/匹配值不变；详情与调试日志共用）。 */
+export function displayEndpoint(url: string): string {
+  return url.replace(/^https:\/\//, '').replace(/\/+$/, '');
 }
 
 /** 提取 url 的 host（解析失败时返回原串）。 */
@@ -565,15 +573,22 @@ export class RequestUrlAccelerator {
             // 绝不拖动 active；市场直连（未覆盖）流量同样不记账。
             const target =
               url !== undefined ? rewriteUrl(url, candidate) : undefined;
-            if (url !== undefined && target !== url) {
+            if (url !== undefined && target !== undefined && target !== url) {
               rewriteArgsInPlace(args, candidate);
               this.uncovered.delete(hostOf(url));
               const requestId = args[0];
               if (typeof requestId === 'string') {
                 this.observe(ipc, name, requestId, url);
               }
+              if (config.debug) {
+                console.log(
+                  `[GT] [REWRITE] ${displayEndpoint(url)} → ${displayEndpoint(target)}`,
+                );
+              }
             } else if (url !== undefined && isKnownGithubUrl(url)) {
-              // 未覆盖告知：未命中映射且属已知域 → 记录 host（连同当时的镜像名）
+              // 未覆盖告知：未命中映射且属已知域 → 记录 host（连同当时的镜像名）。
+              // 正常路径不可达（添加表单强制双映射，已知域必被覆盖），仅防手工/
+              // 历史数据；不打日志（spec v1.1 删 DIRECT 行，未来映射编辑可复议）。
               this.uncovered.set(hostOf(url), name);
             }
           }
