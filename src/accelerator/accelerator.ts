@@ -94,6 +94,24 @@ function findUrlCarrier(args: unknown[]): UrlCarrier | undefined {
   return undefined;
 }
 
+/**
+ * Whether the request carrier carries credentials — an Authorization
+ * header under any key casing. Auth-bearing traffic stays direct: the
+ * mirror is a third party and must never see it.
+ */
+export function hasAuthorizationHeader(slot: unknown): boolean {
+  if (!slot || typeof slot !== 'object') {
+    return false;
+  }
+  const headers = (slot as { headers?: unknown }).headers;
+  if (!headers || typeof headers !== 'object') {
+    return false;
+  }
+  return Object.keys(headers).some(
+    (key) => key.toLowerCase() === 'authorization',
+  );
+}
+
 export class RequestUrlAccelerator {
   private readonly pool: MirrorCandidate[];
   private readonly probe: IpcProbe;
@@ -179,11 +197,16 @@ export class RequestUrlAccelerator {
    * Through-traffic rule: only a request hitting the active candidate's own
    * mapping is rewritten AND accounted. A miss (direct traffic, or an
    * already mirrored URL — rewriteUrl is idempotent) passes through
-   * untouched and never drags the cursor.
+   * untouched and never drags the cursor. Requests carrying credentials
+   * (Authorization header) are exempt outright: they stay direct and
+   * unaccounted — the mirror is a third party and must never see them.
    */
   private accelerate(ipc: IpcLike, args: unknown[]): void {
     const carrier = findUrlCarrier(args);
     if (!carrier) {
+      return;
+    }
+    if (hasAuthorizationHeader(carrier.slot)) {
       return;
     }
     const candidate = this.pool.find((c) => c.name === this.cursor.activeName);

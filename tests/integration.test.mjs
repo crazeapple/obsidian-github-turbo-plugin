@@ -218,3 +218,37 @@ function installOn(ipc, options = {}) {
   const accel = installOn(ipc, { pool: undefined });
   assert.equal(accel.activeName, DEFAULT_POOL[0].name);
 }
+
+// A1/A2 — credential guard: auth-bearing requests stay direct, unobserved
+// and unaccounted; the header key matches case-insensitively.
+{
+  const { ipc, sent } = createFakeIpc();
+  const accel = installOn(ipc);
+  ipc.send('request-url', 'a1', {
+    url: RELEASE_URL,
+    headers: { Authorization: 'Bearer ghp_secret' },
+  });
+  assert.equal(sent[0].args[1].url, RELEASE_URL); // unrewritten
+  assert.equal(ipc.listenerCount('a1'), 0); // unobserved
+  ipc.send('request-url', 'a2', {
+    url: RELEASE_URL,
+    headers: { authorization: 'token ghp_secret' },
+  });
+  assert.equal(sent[1].args[1].url, RELEASE_URL); // lowercase key exempted too
+  assert.equal(ipc.listenerCount('a2'), 0);
+  ipc.send('request-url', 'a3', {
+    url: RELEASE_URL,
+    headers: { AUTHORIZATION: 'Basic xyz' },
+  });
+  assert.equal(sent[2].args[1].url, RELEASE_URL); // uppercase key exempted too
+  assert.equal(ipc.listenerCount('a3'), 0);
+  assert.equal(accel.activeName, 'alpha'); // nothing above dragged the cursor
+  // A3 — same request without credentials still rewrites and observes:
+  ipc.send('request-url', 'a4', {
+    url: RELEASE_URL,
+    headers: { 'X-Other': 'value' },
+  });
+  assert.equal(sent[3].args[1].url, RELEASE_REWRITTEN);
+  assert.equal(ipc.listenerCount('a4'), 1); // observation attached
+  accel.restore();
+}
