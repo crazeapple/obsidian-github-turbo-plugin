@@ -30,6 +30,10 @@
 
 无代理环境下加速内置市场对 GitHub 的访问；对 Obsidian 完全透明——不改界面、不改操作、不改非 GitHub 请求。
 
+### 作用范围
+
+改写面向渲染进程全部指向 github.com 与 raw.githubusercontent.com 的请求——IPC 消息无发送者身份，市场流量与其他插件的 GitHub 流量在通道上不可区分；携带 Authorization 头的鉴权请求豁免改写，恒直连不记账。
+
 ### 平台机制
 
 桌面端内置市场的 GitHub 请求经渲染进程 `request-url` IPC 通道过桥（URL 明文），响应按请求 ID 命名频道回达且载荷含 `status`——包装 `ipcRenderer.send` 即可在发出前改写 URL、在回达时观测结果。

@@ -1,8 +1,10 @@
 # GitHub Turbo
 
-加速 Obsidian 内置社区插件与主题市场的 GitHub 访问：把市场请求的 GitHub 地址改写为镜像地址后发出，无需系统代理，市场界面与操作习惯不变。
+加速 Obsidian 内置社区插件与主题市场的 GitHub 访问：把 GitHub 地址改写为镜像地址后发出，无需系统代理，市场界面与操作习惯不变。
 
-> 开发中——首个可用版本尚未发布。设计文档见 [docs/design.md](docs/design.md)。
+作用范围与鉴权：本插件会改写 Obsidian 中所有指向 `github.com` 与 `raw.githubusercontent.com` 的请求——不止市场，也包括其他插件对这两个主机的访问；携带 `Authorization` 头的鉴权请求恒直连，不经镜像。
+
+> 当前版本 0.1.0（pre-release）。设计文档见 [docs/design.md](docs/design.md)。
 
 ## 功能规划
 
