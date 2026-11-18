@@ -5,3 +5,4 @@
  * harness — no module stub needed.
  */
 export * from './mapping';
+export * from './cursor';
