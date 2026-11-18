@@ -1,0 +1,9 @@
+{
+  "globs": ["*.md", "docs/**/*.md"],
+  "config": {
+    // MD013: line length
+    "MD013": false,
+    // MD060: table column style
+    "MD060": false
+  }
+}

@@ -1,0 +1,6 @@
+# Format source files; hidden directories and generated/lock files are excluded.
+.*
+!.github
+
+main.js
+pnpm-lock.yaml

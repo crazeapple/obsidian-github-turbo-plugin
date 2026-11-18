@@ -1,0 +1,88 @@
+name: Release Obsidian plugin
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  build:
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Verify version consistency
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          pkg_version=$(node -p "require('./package.json').version")
+          manifest_version=$(node -p "require('./manifest.json').version")
+          if [ "$tag" != "$pkg_version" ]; then
+            echo "::error::tag ${tag} != package.json version ${pkg_version}"
+            exit 1
+          fi
+          if [ "$tag" != "$manifest_version" ]; then
+            echo "::error::tag ${tag} != manifest.json version ${manifest_version}"
+            exit 1
+          fi
+
+      # pnpm and Node.js versions come from package.json devEngines.
+      - name: Set up pnpm and Node.js
+        uses: pnpm/setup@v3
+        with:
+          cache: true
+          require-lockfile: true
+
+      - name: Build plugin
+        run: pnpm build
+
+      - name: Extract release notes
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          if [ ! -f CHANGELOG.md ]; then
+            echo "::error::CHANGELOG.md is missing; add it with a '## ${tag}' section before tagging."
+            exit 1
+          fi
+          awk -v heading="## ${tag}" '
+            $0 == heading { found = 1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "::error::CHANGELOG.md has no '## ${tag}' section; the release body comes from it."
+            exit 1
+          fi
+
+      - name: Check for optional styles
+        id: styles
+        run: |
+          [ -f styles.css ] && echo "exists=true" >> "$GITHUB_OUTPUT" || echo "exists=false" >> "$GITHUB_OUTPUT"
+
+      - name: Attest build provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: |
+            main.js
+            ${{ steps.styles.outputs.exists == 'true' && 'styles.css' || '' }}
+
+      - name: Create release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+
+          # 0.x versions are process releases (pre-stable); 1.0.0+ are real releases.
+          prerelease_flag=""
+          if [ "${tag%%.*}" = "0" ]; then
+            prerelease_flag="--prerelease"
+          fi
+
+          gh release create "$tag" \
+            --title="$tag" \
+            --notes-file release-notes.md \
+            --draft \
+            $prerelease_flag \
+            main.js manifest.json ${{ steps.styles.outputs.exists == 'true' && 'styles.css' || '' }}
