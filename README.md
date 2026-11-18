@@ -2,7 +2,7 @@
 
 加速 Obsidian 内置社区插件与主题市场的 GitHub 访问：把市场请求的 GitHub 地址改写为镜像地址后发出，无需系统代理，市场界面与操作习惯不变。
 
-> 开发中——核心加速引擎正在实现，尚未发布可用版本。设计文档见 [docs/design.md](docs/design.md)。
+> 开发中——首个可用版本尚未发布。设计文档见 [docs/design.md](docs/design.md)。
 
 ## 功能规划
 
@@ -13,7 +13,7 @@
 
 ## 手动安装
 
-把 `main.js`、`manifest.json` 复制到 vault 的插件目录后重载 Obsidian，在 设置 → 第三方插件 中启用 GitHub Turbo：
+把 `main.js`、`manifest.json` 复制到 vault 的插件目录后重载 Obsidian，在 **设置 → 第三方插件** 中启用 GitHub Turbo：
 
 ```text
 <Vault>/.obsidian/plugins/obsidian-github-turbo-plugin/
