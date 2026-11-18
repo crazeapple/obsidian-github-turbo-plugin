@@ -1,4 +1,5 @@
-import { Plugin } from 'obsidian';
+import { Notice, Plugin } from 'obsidian';
+import { RequestUrlAccelerator } from './accelerator/accelerator';
 import { DEFAULT_SETTINGS, TurboSettingTab, TurboSettings } from './settings';
 
 /**
@@ -7,10 +8,31 @@ import { DEFAULT_SETTINGS, TurboSettingTab, TurboSettings } from './settings';
  */
 export default class GitHubTurbo extends Plugin {
   settings!: TurboSettings;
+  private accelerator = new RequestUrlAccelerator();
 
   async onload() {
     await this.loadSettings();
     this.addSettingTab(new TurboSettingTab(this.app, this));
+    // Mount the channel wrapper; an environment without the IPC bridge (or a
+    // changed structure) stays unmounted silently — every request direct.
+    this.accelerator.install();
+    // Session reset: cursor to the first mirror, streaks and blacklists
+    // cleared so a blacklisted mirror gets a fresh chance.
+    this.accelerator.reset();
+    this.addCommand({
+      id: 'switch-next-mirror',
+      name: 'GitHub Turbo: Switch to next GitHub mirror',
+      callback: () => {
+        const mirror = this.accelerator.switchNext();
+        new Notice(
+          mirror ? `Switched to ${mirror}` : 'All mirrors are blacklisted',
+        );
+      },
+    });
+  }
+
+  onunload() {
+    this.accelerator.restore();
   }
 
   async loadSettings(): Promise<void> {
