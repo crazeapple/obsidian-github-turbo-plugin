@@ -1,10 +1,26 @@
-import { existsSync, readdirSync } from 'fs';
+import { existsSync, mkdirSync, readdirSync } from 'fs';
 import { spawnSync } from 'child_process';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
+import esbuild from 'esbuild';
 
-// Discovers tests/*.test.mjs and runs each with plain Node. Test files get
-// the engine bundled for them (esbuild + obsidian stub) once the engine
-// work lands; until then the suite is simply empty and passes.
-const dir = 'tests';
+// Harness: bundle the engine entry (src/accelerator/accelerator.ts) to CJS,
+// then discover tests/*.test.mjs and run each with plain Node. The engine
+// has zero `obsidian` imports, so no module stub is needed. The bundle is a
+// generated artifact (tests/.generated) and never committed.
+const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+mkdirSync(join(root, 'tests', '.generated'), { recursive: true });
+await esbuild.build({
+  entryPoints: [join(root, 'src', 'accelerator', 'accelerator.ts')],
+  bundle: true,
+  format: 'cjs',
+  target: 'es2021',
+  outfile: join(root, 'tests', '.generated', 'engine.cjs'),
+  logLevel: 'silent',
+});
+
+const dir = join(root, 'tests');
 const files = existsSync(dir)
   ? readdirSync(dir).filter((f) => f.endsWith('.test.mjs'))
   : [];
@@ -15,7 +31,7 @@ if (files.length === 0) {
 }
 
 const failed = files.filter(
-  (f) => spawnSync('node', [`${dir}/${f}`], { stdio: 'inherit' }).status !== 0,
+  (f) => spawnSync('node', [join(dir, f)], { stdio: 'inherit' }).status !== 0,
 );
 if (failed.length > 0) {
   console.error(`\n${failed.length} test file(s) failed: ${failed.join(', ')}`);
