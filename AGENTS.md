@@ -81,8 +81,8 @@ GitHub Action 在每次 push 与 pull request 时运行 `pnpm check`。
 
 ## 版本与发布
 
-- 单一入口：`pnpm version <major|minor|patch|x.y.z>`——同步 `package.json`、`manifest.json`（经 `version-bump.mjs`）与 `versions.json`，然后一步完成提交与打 tag。tag 是裸版本号（无 `v` 前缀，配置在 `.npmrc`）。
-- 推送用 `git push --follow-tags`。release 工作流校验 tag 与版本一致性、构建、创建 **draft** release；publish 是人工检查步骤。
+- 单一入口：`pnpm version <major|minor|patch|x.y.z> --tag-version-prefix ''`——同步 `package.json`、`manifest.json`（经 `version-bump.mjs`）与 `versions.json`，然后一步完成提交与打 tag。tag 是裸版本号（无 `v` 前缀）；前缀旗标必须显式传，pnpm 12 不读 `.npmrc` 里的空值 `tag-version-prefix = ""`。
+- 推送用 `git push origin main <tag>` 显式带上 tag（`--follow-tags` 只搬运附注 tag，带不了本仓的轻量 tag）。release 工作流校验 tag 与版本一致性、构建、创建 **draft** release；publish 是人工检查步骤。
 - `0.x` 版本是未稳定的过程版（标记 pre-release）；`1.0.0` 起是正式版本。
 - `CHANGELOG.md` 每版本一节、面向用户、最新的在上（随首个版本创建）；章节标题就是版本号（如 `## 0.1.0`）。release 说明由 release 工作流从对应章节提取——章节缺失时工作流直接失败，所以发版前必须写好本版章节。
 - 每次发布保持 `versions.json` 里的 `minAppVersion` 准确。
