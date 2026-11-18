@@ -29,15 +29,15 @@ export interface MirrorCandidate {
  */
 export const DEFAULT_POOL: MirrorCandidate[] = [
   {
-    name: 'gh-proxy.com',
+    name: 'ghproxy.net',
     mappings: [
       {
         from: 'https://github.com/',
-        to: 'https://gh-proxy.com/https://github.com/',
+        to: 'https://ghproxy.net/https://github.com/',
       },
       {
         from: 'https://raw.githubusercontent.com/',
-        to: 'https://gh-proxy.com/https://raw.githubusercontent.com/',
+        to: 'https://ghproxy.net/https://raw.githubusercontent.com/',
       },
     ],
   },
@@ -55,28 +55,15 @@ export const DEFAULT_POOL: MirrorCandidate[] = [
     ],
   },
   {
-    name: 'ghproxy.net',
+    name: 'gh-proxy.com',
     mappings: [
       {
         from: 'https://github.com/',
-        to: 'https://ghproxy.net/https://github.com/',
+        to: 'https://gh-proxy.com/https://github.com/',
       },
       {
         from: 'https://raw.githubusercontent.com/',
-        to: 'https://ghproxy.net/https://raw.githubusercontent.com/',
-      },
-    ],
-  },
-  {
-    name: 'gh.ddlc.top',
-    mappings: [
-      {
-        from: 'https://github.com/',
-        to: 'https://gh.ddlc.top/https://github.com/',
-      },
-      {
-        from: 'https://raw.githubusercontent.com/',
-        to: 'https://gh.ddlc.top/https://raw.githubusercontent.com/',
+        to: 'https://gh-proxy.com/https://raw.githubusercontent.com/',
       },
     ],
   },
