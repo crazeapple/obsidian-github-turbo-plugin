@@ -11,6 +11,8 @@ export default defineConfig(
     // test build (README test section S5).
     'tests/.generated',
     'test-build-broken-first',
+    // Sibling git checkouts under .worktrees/ (like prettier's dot-dir rule).
+    '.worktrees',
   ]),
   {
     languageOptions: {
