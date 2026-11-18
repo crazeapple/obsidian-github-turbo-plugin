@@ -1,7 +1,7 @@
 {
   "id": "obsidian-github-turbo-plugin",
   "name": "GitHub Turbo",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "minAppVersion": "1.13.0",
   "description": "Accelerate GitHub access for Obsidian's built-in community plugin & theme marketplace (mirror URL rewriting)",
   "author": "crazeapple",
