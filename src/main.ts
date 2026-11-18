@@ -21,7 +21,9 @@ export default class GitHubTurbo extends Plugin {
     this.accelerator.reset();
     this.addCommand({
       id: 'switch-next-mirror',
-      name: 'GitHub Turbo: Switch to next GitHub mirror',
+      // Obsidian prefixes the plugin name in the palette automatically, so
+      // the name field carries only the command part.
+      name: 'Switch to next GitHub mirror',
       callback: () => {
         const mirror = this.accelerator.switchNext();
         new Notice(
